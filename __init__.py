@@ -1,10 +1,10 @@
 bl_info = {
     "name": "AI Copilot",
     "author": "AI Copilot Contributors",
-    "version": (0, 1, 0),
+    "version": (0, 2, 0),
     "blender": (3, 6, 0),
     "location": "3D Viewport > Sidebar (N) > AI Copilot",
-    "description": "Create and edit 3D models by chatting with an AI. Send images and get bpy code that runs in your scene.",
+    "description": "Chat with an OpenCode-powered AI agent inside Blender: send text or images, get working bpy code executed in your scene.",
     "doc_url": "https://github.com/BlenderGPT3D/blender-ai-addon",
     "category": "3D View",
 }
@@ -17,12 +17,15 @@ from . import properties, operators, panels
 classes = (
     properties.AIMessage,
     properties.AIProperties,
-    operators.AICopilotSend,
-    operators.AICopilotClear,
-    operators.AICopilotRunLast,
+    operators.AICopilotInstall,
+    operators.AICopilotServerStart,
+    operators.AICopilotServerStop,
     operators.AICopilotAttachImage,
     operators.AICopilotScreenshot,
     operators.AICopilotClearImage,
+    operators.AICopilotSend,
+    operators.AICopilotRunLast,
+    operators.AICopilotClear,
     panels.VIEW3D_PT_ai_copilot_chat,
     panels.VIEW3D_PT_ai_copilot_settings,
 )

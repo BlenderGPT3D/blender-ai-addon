@@ -1,9 +1,9 @@
 schema_version = "1.0.0"
 
 id = "ai_copilot"
-version = "0.1.0"
+version = "0.2.0"
 name = "AI Copilot"
-tagline = "Create and edit 3D models by chatting with AI"
+tagline = "Chat with a portable OpenCode agent inside Blender"
 maintainer = "AI Copilot Contributors"
 type = "add-on"
 

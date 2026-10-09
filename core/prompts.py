@@ -1,40 +1,61 @@
-SYSTEM_PROMPT_TEMPLATE = """You are an expert Blender Python developer embedded as an assistant inside Blender {version}.
+AGENTS_TEMPLATE = """# Blender AI Copilot workspace
 
-Your job: the user asks you to create, modify, animate, or explain 3D scene content, and you answer.
+You are assisting a Blender user from inside a Blender add-on. The user cannot see
+this workspace, only your replies.
 
-Rules:
-1. When an action is required, write a complete, runnable bpy script that performs it from the current scene state.
-2. Always put executable code in one fenced block: ```python ... ```
-3. Use bpy.data and bpy.ops from the current context. Do not use bpy.app.timers or threading.
-4. Do not call bpy.ops.wm.* file operations, do not quit or save the file.
-5. Prefer creating/modifying objects via bpy.data (meshes, materials, modifiers) and use bpy.ops only for context-dependent actions.
-6. New object code must not depend on objects existing: check with bpy.data.objects.get() first.
-7. Keep scripts self-contained: define everything you use, never rely on variables from previous scripts.
-8. If the user attached an image, treat it as the visual reference: match proportions, colors, and shapes as closely as practical.
-9. If the last execution failed (the log is included in the conversation), fix the error in the new script.
-10. If no action is needed, answer briefly in the user's language without a code block.
-11. Respond in the same language the user writes in.
+## Output rules (mandatory)
 
-Current scene context:
-{context}
+1. Every reply that requires an action MUST contain ONE complete runnable Python
+   script in a single fenced block: ```python ... ```
+2. The script runs inside Blender with full access to `bpy`, `bmesh`, `mathutils`,
+   `math`, `random`. It must be self-contained: never rely on variables or objects
+   created by previous scripts.
+3. Never use `bpy.app.timers`, `threading`, or `bpy.ops.wm.*` file dialogs.
+   Never save, quit, or overwrite the user's file.
+4. Prefer `bpy.data` (meshes, materials, modifiers, collections) over `bpy.ops`.
+   Guard object creation with `bpy.data.objects.get(...)`.
+5. Do NOT use the shell/bash tool: you cannot touch Blender from it. Do not edit
+   files except scratch files in this workspace.
+6. If the last execution failed (the log is pasted by the user), fix the error and
+   return the corrected full script.
+7. If no action is needed, answer briefly in the user's language without a code block.
+8. Reply in the same language the user writes in.
+
+## Workspace files
+
+- `scene_context.txt` - fresh description of the current Blender scene, updated
+  before every message. Read it before answering.
+- `reference_image.png` - the image the user attached to the current message, if any.
+  Match proportions, colors and shapes from it as closely as practical.
 """
 
 
 def scene_context(scene):
-    objects = scene.objects
+    import bpy
     lines = []
-    lines.append("Blender objects: %d" % len(objects))
+    lines.append("Blender %d.%d.%d" % bpy.app.version[:3])
+    lines.append("Objects: %d" % len(scene.objects))
     if scene.collection.children:
-        lines.append("Collections: %s" % ", ".join(c.name for c in scene.collection.children[:10]))
-    active = bpy_active(scene)
+        lines.append(
+            "Collections: %s" % ", ".join(c.name for c in scene.collection.children[:10])
+        )
+    active = _active_object(scene)
     if active:
         lines.append(
             "Active object: %s (type=%s, mode=%s, verts=%s)"
             % (active.name, active.type, active.mode, _vert_count(active))
         )
-    recent = [o.name for o in objects[:15]]
-    lines.append("Objects: %s" % ", ".join(recent) if recent else "Objects: (empty scene)")
+    names = [o.name for o in scene.objects[:15]]
+    if names:
+        lines.append("Object names: %s" % ", ".join(names))
     return "\n".join(lines)
+
+
+def _active_object(scene):
+    try:
+        return scene.objects.active
+    except Exception:
+        return None
 
 
 def _vert_count(obj):
@@ -46,14 +67,22 @@ def _vert_count(obj):
         return "?"
 
 
-def bpy_active(scene):
-    try:
-        return scene.objects.active
-    except Exception:
-        return None
+def write_workspace_files(workspace, scene, image_path):
+    import os
+    import shutil
 
-
-def build_system_prompt(scene):
-    import bpy
-    version = "%d.%d.%d" % bpy.app.version
-    return SYSTEM_PROMPT_TEMPLATE.format(version=version, context=scene_context(scene))
+    with open(os.path.join(workspace, "AGENTS.md"), "w", encoding="utf-8") as fh:
+        fh.write(AGENTS_TEMPLATE)
+    with open(os.path.join(workspace, "scene_context.txt"), "w", encoding="utf-8") as fh:
+        fh.write(scene_context(scene))
+    ref = os.path.join(workspace, "reference_image.png")
+    if image_path and os.path.isfile(image_path):
+        try:
+            shutil.copy(image_path, ref)
+        except Exception:
+            pass
+    elif os.path.isfile(ref):
+        try:
+            os.remove(ref)
+        except Exception:
+            pass

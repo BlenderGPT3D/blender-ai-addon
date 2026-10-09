@@ -1,5 +1,7 @@
 import bpy
 
+from .core import opencode_installer as installer
+from .core import opencode_server as server
 from .core import utils
 
 MAX_MESSAGES_SHOWN = 12
@@ -8,6 +10,11 @@ MAX_LINES_PER_MESSAGE = 10
 ROLE_ICONS = {
     "user": "USER",
     "assistant": "BLENDER",
+}
+
+ROLE_LABELS = {
+    "user": "You",
+    "assistant": "AI",
 }
 
 
@@ -22,10 +29,12 @@ class VIEW3D_PT_ai_copilot_chat(bpy.types.Panel):
         layout = self.layout
         ai = context.scene.ai
 
+        self._draw_status(layout, context)
+
         row = layout.row()
         row.scale_y = 1.2
         row.prop(ai, "input", text="")
-        row.enabled = not ai.busy
+        row.enabled = not ai.busy and (server.running() or server.is_up(ai.oc_port))
 
         row = layout.row(align=True)
         row.scale_y = 1.3
@@ -35,16 +44,44 @@ class VIEW3D_PT_ai_copilot_chat(bpy.types.Panel):
         self._draw_image_row(layout, ai)
 
         if ai.busy:
-            layout.label(text="Thinking...", icon="TIME")
+            layout.label(text="Agent is working...", icon="TIME")
             return
 
         self._draw_history(layout, ai)
+
+    def _draw_status(self, layout, context):
+        ai = context.scene.ai
+        box = layout.box()
+
+        if installer.installing():
+            box.label(text=ai.oc_status or "installing...", icon="TIME")
+            box.progress(factor=ai.oc_progress, type="BAR")
+            return
+
+        if not installer.is_installed():
+            box.label(text="Portable runtime not installed", icon="INFO")
+            row = box.row()
+            row.scale_y = 1.2
+            row.operator("ai_copilot.install", icon="IMPORT")
+            return
+
+        if server.running() or server.is_up(ai.oc_port):
+            box.label(text="OpenCode ready", icon="CHECKMARK")
+            box.operator("ai_copilot.server_stop", text="Stop Server", icon="PAUSE")
+        else:
+            status = ai.oc_status or "server stopped"
+            icon = "TIME" if "starting" in status else "ERROR" if "error" in status else "STATUS"
+            box.label(text=status, icon=icon)
+            row = box.row()
+            row.scale_y = 1.2
+            row.operator("ai_copilot.server_start", text="Start Server", icon="PLAY")
 
     def _draw_image_row(self, layout, ai):
         if ai.image_path:
             box = layout.box()
             row = box.row(align=True)
-            row.label(text="Image: %s" % (ai.image_path.replace("\\", "/").split("/")[-1]), icon="FILE_IMAGE")
+            name = ai.image_path.replace("\\", "/").split("/")[-1]
+            row.label(text="Image: %s" % name, icon="FILE_IMAGE")
             row.operator("ai_copilot.clear_image", text="", icon="X")
         else:
             row = layout.row(align=True)
@@ -60,7 +97,10 @@ class VIEW3D_PT_ai_copilot_chat(bpy.types.Panel):
             box.label(text="attach an image, and press Send.")
             return
         if len(messages) > MAX_MESSAGES_SHOWN:
-            layout.label(text="... %d earlier messages hidden" % (len(messages) - MAX_MESSAGES_SHOWN), icon="DOT")
+            layout.label(
+                text="... %d earlier messages hidden" % (len(messages) - MAX_MESSAGES_SHOWN),
+                icon="DOT",
+            )
         for msg in messages[-MAX_MESSAGES_SHOWN:]:
             self._draw_message(layout, msg)
 
@@ -84,13 +124,8 @@ class VIEW3D_PT_ai_copilot_chat(bpy.types.Panel):
         if len(lines) > MAX_LINES_PER_MESSAGE:
             body.label(text="... (%d more lines)" % (len(lines) - MAX_LINES_PER_MESSAGE))
         if msg.image:
-            box.label(text="attachment: %s" % msg.image.replace("\\", "/").split("/")[-1], icon="FILE_IMAGE")
-
-
-ROLE_LABELS = {
-    "user": "You",
-    "assistant": "AI",
-}
+            name = msg.image.replace("\\", "/").split("/")[-1]
+            box.label(text="attachment: %s" % name, icon="FILE_IMAGE")
 
 
 class VIEW3D_PT_ai_copilot_settings(bpy.types.Panel):
@@ -105,22 +140,21 @@ class VIEW3D_PT_ai_copilot_settings(bpy.types.Panel):
         layout = self.layout
         ai = context.scene.ai
 
-        layout.prop(ai, "api_base")
-        layout.prop(ai, "api_key")
-        layout.prop(ai, "model")
-        layout.prop(ai, "temperature")
-        layout.prop(ai, "max_tokens")
+        layout.prop(ai, "oc_provider")
+        if ai.oc_provider != "ollama":
+            layout.prop(ai, "oc_api_key")
+        layout.prop(ai, "oc_model")
+        layout.prop(ai, "oc_port")
         layout.prop(ai, "auto_run")
+        layout.prop(ai, "oc_auto_fix")
 
         box = layout.box()
         box.scale_y = 0.85
-        box.label(text="Works with any OpenAI-compatible API:", icon="URL")
-        box.label(text="OpenAI, OpenRouter, Ollama,")
-        box.label(text="LM Studio, DeepSeek, Groq...")
-        row = box.row(align=True)
-        row.label(text="Ollama base URL:")
-        row2 = box.row(align=True)
-        row2.label(text="http://localhost:11434/v1")
+        box.label(text="Model ID examples:", icon="URL")
+        box.label(text="openai: gpt-4o")
+        box.label(text="anthropic: claude-sonnet-4")
+        box.label(text="ollama: llava (vision for images)")
+        box.label(text="Logs: ai_copilot/server.log")
 
 
 classes = (

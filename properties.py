@@ -4,9 +4,18 @@ from bpy.props import (
     CollectionProperty,
     FloatProperty,
     IntProperty,
-    PointerProperty,
     StringProperty,
 )
+
+PROVIDERS = [
+    ("openai", "OpenAI", "Uses OPENAI_API_KEY"),
+    ("openrouter", "OpenRouter", "Uses OPENROUTER_API_KEY"),
+    ("anthropic", "Anthropic", "Uses ANTHROPIC_API_KEY"),
+    ("groq", "Groq", "Uses GROQ_API_KEY"),
+    ("deepseek", "DeepSeek", "Uses DEEPSEEK_API_KEY"),
+    ("ollama", "Ollama (local)", "No key needed, local server"),
+    ("custom", "Custom model ID", "Model ID must include provider, e.g. openai/gpt-4o"),
+]
 
 
 class AIMessage(bpy.types.PropertyGroup):
@@ -16,39 +25,41 @@ class AIMessage(bpy.types.PropertyGroup):
 
 
 class AIProperties(bpy.types.PropertyGroup):
-    api_base: StringProperty(
-        name="Base URL",
-        default="https://api.openai.com/v1",
-        description="OpenAI-compatible endpoint base URL",
+    oc_provider: bpy.props.EnumProperty(
+        name="Provider",
+        items=PROVIDERS,
+        default="openai",
+        description="Model provider configured for the portable OpenCode runtime",
     )
-    api_key: StringProperty(
+    oc_api_key: StringProperty(
         name="API Key",
         subtype="PASSWORD",
-        description="API key for the provider",
+        description="Provider API key, passed to the OpenCode process",
     )
-    model: StringProperty(
+    oc_model: StringProperty(
         name="Model",
         default="gpt-4o",
-        description="Model name, must support images for image input",
+        description="Model for OpenCode, e.g. gpt-4o, claude-sonnet-4, llava",
     )
-    temperature: FloatProperty(
-        name="Temperature",
-        default=0.2,
-        min=0.0,
-        max=2.0,
-        description="Sampling temperature",
+    oc_port: IntProperty(
+        name="Port",
+        default=4096,
+        min=1024,
+        max=65535,
+        description="Port for the local OpenCode server",
     )
-    max_tokens: IntProperty(
-        name="Max tokens",
-        default=2048,
-        min=64,
-        max=32768,
-        description="Maximum tokens in the response",
+    oc_session_id: StringProperty(default="")
+    oc_status: StringProperty(default="")
+    oc_progress: FloatProperty(default=0.0, min=0.0, max=1.0, subtype="FACTOR")
+    oc_auto_fix: BoolProperty(
+        name="Auto-fix errors",
+        default=True,
+        description="Automatically send execution logs back to the agent for fixing",
     )
     auto_run: BoolProperty(
         name="Auto-run",
         default=True,
-        description="Automatically execute code returned by the AI",
+        description="Automatically execute code returned by the agent",
     )
     input: StringProperty(
         name="Message",
@@ -61,4 +72,4 @@ class AIProperties(bpy.types.PropertyGroup):
         description="Optional image attached to the next message",
     )
     messages: CollectionProperty(type=AIMessage)
-    busy: BoolProperty(default=False, description="Waiting for the AI response")
+    busy: BoolProperty(default=False, description="Waiting for the agent")
