@@ -1,0 +1,36 @@
+schema_version = "1.0.0"
+
+id = "ai_copilot"
+version = "0.1.0"
+name = "AI Copilot"
+tagline = "Create and edit 3D models by chatting with AI"
+maintainer = "AI Copilot Contributors"
+type = "add-on"
+
+blender_version_min = "3.6.0"
+
+license = [
+  "SPDX:MIT",
+]
+
+tags = [
+  "3D View",
+  "Modeling",
+  "Pipeline",
+]
+
+permissions = [
+  "network",
+  "files",
+]
+
+[build]
+paths_exclude_pattern = [
+  "__pycache__/",
+  "*.zip",
+  "dist/",
+  ".git/",
+  "README.md",
+  "LICENSE",
+  ".gitignore",
+]
